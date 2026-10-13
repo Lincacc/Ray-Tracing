@@ -4,6 +4,7 @@
 #include "core/hittable_list.h"
 #include "geometry/sphere.h"
 #include "material/diffuse_bsdf.h"
+#include "accelerator/thread_pool.h"
 
 #include <chrono>
 #include <iostream>
@@ -11,6 +12,8 @@
 constexpr int WIDTH = 512;
 constexpr int HEIGHT = 512;
 constexpr int SAMPLES_PER_PIXEL = 128;
+
+constexpr int TILE = 32;
 
 int main() {
     LinRT::camera camera;
@@ -41,32 +44,47 @@ int main() {
     const auto start = std::chrono::steady_clock::now();
 
     std::vector<LinRT::color> pixels(WIDTH * HEIGHT);
-    for(int y = 0; y < HEIGHT; ++y) {
-        for(int x = 0; x < WIDTH; ++x) {
 
-            LinRT::color pixel_color(0.0f);
-            LinRT::hit_record rec;
-            for(int s = 0; s < SAMPLES_PER_PIXEL; ++s) {
-                auto u_offset = LinRT::sobol::sampler(s, 0);
-                auto v_offset = LinRT::sobol::sampler(s, 1);
+    const auto total = static_cast<long long>(WIDTH) * HEIGHT;
+    std::atomic<long long> done(0);
+    std::mutex progress_mutex;
+    {
+        LinRT::thread_pool pool;
+        for(int y0 = 0; y0 < HEIGHT; y0 += TILE) {
+            for(int x0 = 0; x0 < WIDTH; x0 += TILE) {
+                const int x1 = std::min(x0 + TILE, WIDTH);
+                const int y1 = std::min(y0 + TILE, HEIGHT);
 
-                auto u = (static_cast<LinRT::global_precision>(x) + u_offset) / static_cast<LinRT::global_precision>(WIDTH - 1);
-                auto v = (static_cast<LinRT::global_precision>(y) + v_offset) / static_cast<LinRT::global_precision>(HEIGHT - 1);
+                // 块的范围按值拷进任务。场景和相机只读，像素区域互不重叠。
+                pool.submit([&, x0, y0, x1, y1]{
+                    for(int y = y0; y < y1; ++y) {
+                        for(int x = x0; x < x1; ++x) {
+                            LinRT::color pixel_color(0.0f);
+                            for(int s = 0; s < SAMPLES_PER_PIXEL; ++s) {
+                                const auto u_offset = LinRT::sobol::sampler(s, 0);
+                                const auto v_offset = LinRT::sobol::sampler(s, 1);
 
-                auto ray = camera.get_ray(u, v);
-                pixel_color += LinRT::trace(ray, world, env_emitter, static_cast<uint32_t>(s));
+                                const auto u = (static_cast<LinRT::global_precision>(x) + u_offset)
+                                    / static_cast<LinRT::global_precision>(WIDTH - 1);
+                                const auto v = (static_cast<LinRT::global_precision>(y) + v_offset)
+                                    / static_cast<LinRT::global_precision>(HEIGHT - 1);
+
+                                auto ray = camera.get_ray(u, v);
+                                pixel_color += LinRT::trace(ray, world, env_emitter, static_cast<uint32_t>(s));
+                            }
+                            pixels[static_cast<size_t>(y) * WIDTH + x] =
+                                pixel_color / static_cast<LinRT::global_precision>(SAMPLES_PER_PIXEL);
+                        }
+                    }
+                    done.fetch_add(static_cast<long long>(x1 - x0) * (y1 - y0));
+                    const auto line = "\r" + std::to_string(done.load()) + "/" + std::to_string(total);
+                    std::lock_guard<std::mutex> lock(progress_mutex);
+                    std::cout << line << std::flush;
+                });
             }
-            pixel_color /= static_cast<LinRT::global_precision>(SAMPLES_PER_PIXEL);
-
-            pixels[y * WIDTH + x] = pixel_color;
-
-            const auto done = static_cast<long long>(y + 1) * WIDTH;
-            const auto total = static_cast<long long>(WIDTH) * HEIGHT;
-            const auto line = "\r" + std::to_string(done) + "/" + std::to_string(total);
-            std::cout << line << std::flush;
         }
+        pool.wait();
     }
-
     const auto seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     std::cout << "\n" << seconds << " seconds\n";
 
