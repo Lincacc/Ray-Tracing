@@ -6,6 +6,8 @@
 #include <algorithm>
 
 namespace LinRT {
+    class emitter;
+
     struct direct_sample {
         vec3 direction;
         vec3 point;
@@ -14,6 +16,8 @@ namespace LinRT {
         // 无限远光源保持这个默认值。矩形光在 sample 里写成到着色点的距离。
         global_precision distance = INFINITY;
         color radiance;
+
+        const emitter* emitter_ptr = nullptr;
     };
 
     class emitter {

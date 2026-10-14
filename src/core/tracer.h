@@ -29,6 +29,7 @@ namespace LinRT {
             return false;
         }
 
+        out.emitter_ptr = emitters[static_cast<size_t>(index)].get();
         out.pdf *= 1.0f / static_cast<global_precision>(count);
 
         return out.pdf > 0.0f;
@@ -137,21 +138,39 @@ namespace LinRT {
                 direct_sample light;
 
                 if(sample_emitters(emitters, rec.p, light_uv, light)) {
-                    sample_record.wo = onb.world_to_local(light.direction);
-                    const auto f_cos = rec.bsdf_ptr->eval(ctx, sample_record);
-                    if(!f_cos.is_zero()) {
-                        hit_record occluder;
-                        const ray shadow(rec.p + rec.normal * 1e-3f, light.direction);
-                        const auto tmax = std::isinf(light.distance)
-                            ? INFINITY
-                            : light.distance * (1.0f - 1e-3f);
+                    // 起点沿法线挪开之后，必须按新起点重算到灯面上那一点的距离。
+                    // 继续用原来的 light.distance，近处的射线会打进灯球自己。
+                    const auto shadow_origin = rec.p + rec.normal * 1e-4f;
+                    vec3 shadow_direction = light.direction;
+                    auto tmax = INFINITY;
+                    bool have_target = true;
+                    if(!std::isinf(light.distance)) {
+                        const auto to_light = light.point - shadow_origin;
+                        const auto dist = to_light.length();
+                        if(dist < 1e-6f) {
+                            have_target = false;
+                        } else {
+                            shadow_direction = to_light / dist;
+                            tmax = dist * (1.0f - 1e-4f);
+                        }
+                    }
 
-                        if(tmax > 0.001f && !world.hit(shadow, 0.001f, tmax, occluder)) {
-                            const auto bsdf_pdf = rec.bsdf_ptr->pdf(ctx, sample_record);
-                            const auto light_pdf = pdf_emitters(emitters, rec.p, light.direction);
-                            if(light_pdf > 0.0f) {
-                                const auto weight = power_heuristic(light_pdf, bsdf_pdf);
-                                radiance += throughput * f_cos * light.radiance * (weight / light_pdf);
+                    if(have_target) {
+                        sample_record.wo = onb.world_to_local(shadow_direction);
+                        const auto f_cos = rec.bsdf_ptr->eval(ctx, sample_record);
+                        if(!f_cos.is_zero()) {
+                            hit_record occluder;
+                            const ray shadow(shadow_origin, shadow_direction);
+                            const bool hit_something = world.hit(shadow, 0.001f, tmax, occluder);
+                            // 最近的交点就是目标灯：灯可见。中间先碰到别的物体才算挡住。
+                            const bool blocked = hit_something && occluder.emitter_ptr != light.emitter_ptr;
+                            if(!blocked) {
+                                const auto bsdf_pdf = rec.bsdf_ptr->pdf(ctx, sample_record);
+                                const auto light_pdf = pdf_emitters(emitters, rec.p, shadow_direction);
+                                if(light_pdf > 0.0f) {
+                                    const auto weight = power_heuristic(light_pdf, bsdf_pdf);
+                                    radiance += throughput * f_cos * light.radiance * (weight / light_pdf);
+                                }
                             }
                         }
                     }
