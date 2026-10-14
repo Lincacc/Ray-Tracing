@@ -28,7 +28,7 @@ namespace LinRT {
             auto viewport_width = aspect_ratio * viewport_height;
 
             // 构建相机正交基坐标系
-            w = normalize(origin - lower_left_corner);
+            w = normalize(origin - look_at);
             u = normalize(cross(up, w));
             v = cross(w, u);
 
@@ -74,6 +74,7 @@ namespace LinRT {
         
     public:
         vec3 origin;
+        vec3 look_at;
         vec3 lower_left_corner;
         vec3 horizontal;
         vec3 vertical;

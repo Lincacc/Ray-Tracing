@@ -3,8 +3,11 @@
 #include "core/camera.h"
 #include "core/hittable_list.h"
 #include "geometry/sphere.h"
+#include "geometry/rectangle.h"
 #include "material/diffuse_bsdf.h"
 #include "accelerator/thread_pool.h"
+#include "emitter/area_emitter.h"
+#include "core/sampler.h"
 
 #include <chrono>
 #include <iostream>
@@ -17,7 +20,7 @@ constexpr int TILE = 32;
 
 int main() {
     LinRT::camera camera;
-    camera.origin = LinRT::vec3(.0f,.0f,3.0f);
+    camera.origin = LinRT::vec3(.0f,.5f,3.0f);
     camera.update(
         LinRT::vec3(.0f,1.0f,.0f), // up vector
         60.0f,                    // fov
@@ -41,6 +44,20 @@ int main() {
         0.3f,                            // 地面反照率
         0.05f);                         // 曝光，画面全白就再调小
 
+    // cross((1.2,0,0), (0,0,1.2)) 指向 -Y，发光面朝下。
+    auto light_rect = std::make_shared<LinRT::rectangle>(
+        LinRT::vec3(-0.6f, 1.5f, -0.6f),
+        LinRT::vec3(1.2f, 0.0f, 0.0f),
+        LinRT::vec3(0.0f, 0.0f, 1.2f));
+    auto area_rect_emitter = std::make_shared<LinRT::area_emitter>(light_rect, LinRT::color(12.0f));
+    // world.add(light_rect);
+
+    auto light_sphere = std::make_shared<LinRT::sphere>(LinRT::vec3(1.2f, 0.4f, 0.0f), 0.3f);
+    auto area_sphere_emitter = std::make_shared<LinRT::area_emitter>(light_sphere, LinRT::color(12.0f));
+    world.add(light_sphere);
+
+    std::vector<std::shared_ptr<LinRT::emitter>> emitters{ area_sphere_emitter };
+
     const auto start = std::chrono::steady_clock::now();
 
     std::vector<LinRT::color> pixels(WIDTH * HEIGHT);
@@ -61,16 +78,18 @@ int main() {
                         for(int x = x0; x < x1; ++x) {
                             LinRT::color pixel_color(0.0f);
                             for(int s = 0; s < SAMPLES_PER_PIXEL; ++s) {
-                                const auto u_offset = LinRT::sobol::sampler(s, 0);
-                                const auto v_offset = LinRT::sobol::sampler(s, 1);
-
-                                const auto u = (static_cast<LinRT::global_precision>(x) + u_offset)
+                                const auto pixel_index = static_cast<uint32_t>(y * WIDTH + x);
+                                LinRT::sampler sampler;
+                                sampler.start(pixel_index, static_cast<uint32_t>(s));
+                                const auto offset = sampler.next_2d();
+                                
+                                const auto u = (static_cast<LinRT::global_precision>(x) + offset.x)
                                     / static_cast<LinRT::global_precision>(WIDTH - 1);
-                                const auto v = (static_cast<LinRT::global_precision>(y) + v_offset)
+                                const auto v = (static_cast<LinRT::global_precision>(y) + offset.y)
                                     / static_cast<LinRT::global_precision>(HEIGHT - 1);
-
+                                
                                 auto ray = camera.get_ray(u, v);
-                                pixel_color += LinRT::trace(ray, world, env_emitter, static_cast<uint32_t>(s));
+                                pixel_color += LinRT::trace(ray, world, emitters, sampler);
                             }
                             pixels[static_cast<size_t>(y) * WIDTH + x] =
                                 pixel_color / static_cast<LinRT::global_precision>(SAMPLES_PER_PIXEL);

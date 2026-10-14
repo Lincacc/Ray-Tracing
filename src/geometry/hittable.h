@@ -2,6 +2,7 @@
 
 #include "core/ray.h"
 #include "material/bsdf.h"
+#include "emitter/emitter.h"
 
 namespace LinRT {
     class bsdf;
@@ -12,6 +13,7 @@ namespace LinRT {
         vec3 normal;
         bool front_face;
         std::shared_ptr<bsdf> bsdf_ptr;
+        const emitter* emitter_ptr = nullptr;
 
         // 统一法线方向：确保法线永远指向光线入射方向的反方向
         inline void set_face_normal(const ray& r, const vec3& outward_normal) {
@@ -46,7 +48,15 @@ namespace LinRT {
          */
         virtual std::shared_ptr<bsdf> get_material() const { return bsdf_ptr; }
 
+        virtual global_precision get_area() const { return area; }
+
+        virtual void set_emitter(const emitter* emitter) { emitter_ptr = emitter; }
+
+        virtual void sample_position(const vec2& sample, vec3& p, vec3& n, global_precision& pdf) const = 0;
+
     protected:
         std::shared_ptr<bsdf> bsdf_ptr;
+        global_precision area = 0.0f;
+        const emitter* emitter_ptr = nullptr;
     };
 }

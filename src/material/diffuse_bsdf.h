@@ -7,6 +7,10 @@ namespace LinRT {
     public:
         diffuse_bsdf(const color& albedo) : albedo(albedo) {}
 
+        unsigned int flags() const override {
+            return DIFFUSE | REFLECTIVE;
+        }
+
         color sample(const bsdf_context& ctx, bsdf_sample_record& sample_record, const vec2& sample) const override {
             constexpr auto lobe = DIFFUSE | REFLECTIVE;
 

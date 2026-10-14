@@ -3,7 +3,7 @@
 #include "geometry/hittable.h"
 
 namespace LinRT {
-    class hittable_list : public hittable {
+    class hittable_list{
     public:
         hittable_list() = default;
         hittable_list(std::shared_ptr<hittable> object) { add(object); }
@@ -11,7 +11,7 @@ namespace LinRT {
         void add(std::shared_ptr<hittable> object) { objects.push_back(object); }
         void clear() { objects.clear(); }
 
-        bool hit(const ray& r, global_precision t_min, global_precision t_max, hit_record& rec) const override {
+        bool hit(const ray& r, global_precision t_min, global_precision t_max, hit_record& rec) const {
             hit_record temp_rec;
             bool hit_anything = false;
             // 用于记录当前最近的交点距离

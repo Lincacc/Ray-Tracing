@@ -43,6 +43,8 @@ namespace LinRT {
     class bsdf {
         // 所有计算均在局部坐标系下进行        
     public:
+        virtual unsigned int flags() const = 0;
+
         /**
          * @brief 1. 采样：根据入射方向和随机数，生成一条出射光线，并返回加权颜色 (f * cos_theta / pdf)
          * @param bRec 采样记录，传入 wi，输出 wo

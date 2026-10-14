@@ -5,21 +5,107 @@
 #include "core/onb.h"
 #include "emitter/env_emitter.h"
 #include "core/sobol.h"
+#include "core/sampler.h"
 
 namespace LinRT {
     constexpr int MAX_DEPTH = 50;
 
-    color trace(ray& r, const hittable_list& world, std::shared_ptr<emitter> emitter, uint32_t sample_index) {
+    // 用二维样本的 x 分量先抽中哪一盏灯，余数再交给这盏灯。各灯概率都是 1/n。
+    inline bool sample_emitters(const std::vector<std::shared_ptr<emitter>>& emitters,
+                                const vec3& shading_point, const vec2& sample, direct_sample& out) {
+        const auto count = static_cast<int>(emitters.size());
+        if(count <= 0) {
+            return false;
+        }
+
+        const auto scaled = sample.x * static_cast<global_precision>(count);
+        auto index = static_cast<int>(scaled);
+        if(index >= count) {
+            index = count - 1;
+        }
+
+        const auto resampled = vec2(scaled - static_cast<global_precision>(index), sample.y);
+        if(!emitters[static_cast<size_t>(index)]->sample(shading_point, resampled, out)) {
+            return false;
+        }
+
+        out.pdf *= 1.0f / static_cast<global_precision>(count);
+
+        return out.pdf > 0.0f;
+    }
+
+    // 这个方向被光源策略抽到的总密度。某盏灯抽不到该方向时，它的 pdf 返回 0。
+    inline global_precision pdf_emitters(const std::vector<std::shared_ptr<emitter>>& emitters,
+                                        const vec3& shading_point, const vec3& direction) {
+        const auto count = static_cast<int>(emitters.size());
+        if(count <= 0) {
+            return 0.0f;
+        }
+
+        const auto selection = 1.0f / static_cast<global_precision>(count);
+        global_precision sum = 0.0f;
+        for(const auto& emitter : emitters) {
+            sum += selection * emitter->pdf(shading_point, direction);
+        }
+
+        return sum;
+    }
+
+    // 幂启发式，指数 β = 2，是 Mitsuba path 的默认 MIS。
+    // pdf_strategy 是「正在累加的那条策略」的立体角密度，pdf_other 是另一条的。
+    inline global_precision power_heuristic(global_precision pdf_strategy, global_precision pdf_other) {
+        const auto a = pdf_strategy * pdf_strategy;
+        const auto b = pdf_other * pdf_other;
+        const auto sum = a + b;
+        return sum > 0.0f ? a / sum : 0.0f;
+    }
+
+    color trace(ray& r, const hittable_list& world, const std::vector<std::shared_ptr<emitter>>& emitters, sampler& sampler) {
         constexpr int rr_depth = 5;
         global_precision eta = 1.0f;
         color radiance(0.0f);
         color throughput(1.0f);
+
+        // 当前这根射线是不是上一次材质采样产生的，以及那次采样的立体角密度。
+        // 相机射线没有这个密度：直接看到天空时，亮度全部由这条射线贡献。
+        bool have_solid_angle_pdf = false;
+        global_precision solid_angle_pdf = 0.0f;
+
         for(int depth = 0; depth < MAX_DEPTH; ++depth) {
             hit_record rec;
 
             if(!world.hit(r, 0.001f, INFINITY, rec)) {
-                radiance += throughput * emitter->eval(r.direction);
+                color Le(0.0f);
+                for(const auto& light : emitters) {
+                    if(light->is_infinite()) {
+                        Le += light->eval(r.direction);
+                    }
+                }
+
+                if(!have_solid_angle_pdf) {
+                    radiance += throughput * Le;
+                } else {
+                    // 这条方向如果也落在太阳圆锥里，光源策略同样能抽到它。
+                    // 圆锥外 light_pdf 为 0，权重为 1，平滑天光仍只算材质这一路。
+                    const auto light_pdf = pdf_emitters(emitters, rec.p, r.direction);
+                    const auto weight = power_heuristic(solid_angle_pdf, light_pdf);
+                    radiance += throughput * weight * Le;
+                }
                 break;
+            }
+
+            if(rec.emitter_ptr && rec.front_face) {
+                const auto outgoing = -normalize(r.direction);
+                const auto Le = rec.emitter_ptr->emitted(rec.normal, outgoing);
+                if(!Le.is_zero()) {
+                    if(!have_solid_angle_pdf) {
+                        radiance += throughput * Le;
+                    } else {
+                        const auto light_pdf = pdf_emitters(emitters, r.origin, r.direction);
+                        const auto weight = power_heuristic(solid_angle_pdf, light_pdf);
+                        radiance += throughput * weight * Le;
+                    }
+                }
             }
 
             if(!rec.bsdf_ptr) {
@@ -35,16 +121,49 @@ namespace LinRT {
             // mitsuba: wi 指向上一跳的来源方向
             sample_record.wi = onb.world_to_local(-normalize(r.direction));
 
-            // 随机 2D 采样数
-            // 维度 0、1 留给像素。每次弹射占用 3 个维度：BSDF 两个，俄罗斯轮盘一个。
-            auto sample_2d = vec2(
-                sobol::sampler(sample_index, 2 + depth * 3), 
-                sobol::sampler(sample_index, 3 + depth * 3));
-
             // 采样 bsdf
             bsdf_context ctx;
             ctx.mode = bsdf_context::transport_mode::RADIANCE;
-            auto bsdf_weight = rec.bsdf_ptr->sample(ctx, sample_record, sample_2d);
+
+            // 每个弹射固定 5 维：光源两个，材质两个，俄罗斯轮盘一个。
+            // 和 Mitsuba path 一样，没用到也要取走，否则下一次弹射的维度会错位。
+            const auto light_uv = sampler.next_2d();
+            const auto bsdf_uv = sampler.next_2d();
+            const auto rr_u = sampler.next_1d();
+
+            // 直接光：只对有漫反射或光泽波瓣的材质做。纯镜面没有立体角密度，不能和光源 MIS。
+            constexpr unsigned int smooth = DIFFUSE | GLOSSY;
+            if((rec.bsdf_ptr->flags() & smooth) != 0) {
+                direct_sample light;
+
+                if(sample_emitters(emitters, rec.p, light_uv, light)) {
+                    sample_record.wo = onb.world_to_local(light.direction);
+                    const auto f_cos = rec.bsdf_ptr->eval(ctx, sample_record);
+                    if(!f_cos.is_zero()) {
+                        hit_record occluder;
+                        const ray shadow(rec.p + rec.normal * 1e-3f, light.direction);
+                        const auto tmax = std::isinf(light.distance)
+                            ? INFINITY
+                            : light.distance * (1.0f - 1e-3f);
+
+                        if(tmax > 0.001f && !world.hit(shadow, 0.001f, tmax, occluder)) {
+                            const auto bsdf_pdf = rec.bsdf_ptr->pdf(ctx, sample_record);
+                            const auto light_pdf = pdf_emitters(emitters, rec.p, light.direction);
+                            if(light_pdf > 0.0f) {
+                                const auto weight = power_heuristic(light_pdf, bsdf_pdf);
+                                radiance += throughput * f_cos * light.radiance * (weight / light_pdf);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 最后一次弹射只做直接光，不再往下散射。
+            if(depth == MAX_DEPTH - 1) {
+                break;
+            }
+
+            auto bsdf_weight = rec.bsdf_ptr->sample(ctx, sample_record, bsdf_uv);
             if(bsdf_weight.is_zero()) {
                 break;
             }
@@ -52,8 +171,14 @@ namespace LinRT {
             r.origin = rec.p;
             r.direction = onb.local_to_world(sample_record.wo);
 
-            throughput = throughput * bsdf_weight;
+            throughput *= bsdf_weight;
             eta *= sample_record.eta; // 此处的折射率用于俄罗斯轮盘
+
+            // 纯镜面（带 SPECULAR、不带 DIFFUSE/GLOSSY）的密度不是立体角密度，下一次打到天空时不和光源比。
+            const bool delta = (sample_record.sampled_type & SPECULAR) != 0
+                && (sample_record.sampled_type & (DIFFUSE | GLOSSY)) == 0;
+            have_solid_angle_pdf = !delta && sample_record.pdf > 0.0f;
+            solid_angle_pdf = sample_record.pdf;
 
             // 俄罗斯轮盘：depth 为 0..4 的弹射一律保留。
             // 从第 6 次弹射起按存活概率 q 随机终止；活下来的路径除以 q，估计保持无偏。
@@ -64,7 +189,7 @@ namespace LinRT {
                     std::max({throughput.r, throughput.g, throughput.b}) * eta * eta,
                     global_precision{0.95f});
 
-                if(sobol::sampler(sample_index, 4 + depth * 3) >= q) {
+                if(rr_u >= q) {
                     break;
                 }
                 throughput /= q; // 存活，则继续传递能量

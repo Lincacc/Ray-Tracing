@@ -23,6 +23,13 @@ namespace LinRT {
             return *this;
         }
 
+        vec3 operator*=(const vec3& other) {
+            x *= other.x;
+            y *= other.y;
+            z *= other.z;
+            return *this;
+        }
+
         vec3 operator+=(const vec3& other) {
             x += other.x;
             y += other.y;

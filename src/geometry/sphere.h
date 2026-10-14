@@ -6,7 +6,9 @@ namespace LinRT {
     class sphere : public hittable {
     public:
         sphere() = default;
-        sphere(const vec3& center, global_precision radius) : center(center), radius(radius) {}
+        sphere(const vec3& center, global_precision radius) : center(center), radius(radius) {
+            area = 4.0f * M_PI<global_precision> * radius * radius;
+        }
 
         /**
          * @brief 检测光线与球体的交点
@@ -37,12 +39,23 @@ namespace LinRT {
             rec.t = root;
             rec.p = r.at(rec.t);
             rec.bsdf_ptr = bsdf_ptr;
+            rec.emitter_ptr = emitter_ptr;
 
             // 计算向外的法线并统一朝向
             vec3 outward_normal = (rec.p - center) / radius;
             rec.set_face_normal(r, outward_normal);
 
             return true;
+        }
+
+        void sample_position(const vec2& sample, vec3& p, vec3& n, global_precision& pdf) const override {
+            const auto z = 1.0f - 2.0f * sample.y;
+            const auto ring = std::sqrt(std::max(0.0f, 1.0f - z * z));
+            const auto phi = 2.0f * M_PI<global_precision> * sample.x;
+
+            n = vec3(ring * std::cos(phi), ring * std::sin(phi), z);
+            p = center + radius * n;
+            pdf = 1.0f / area;
         }
 
     public:

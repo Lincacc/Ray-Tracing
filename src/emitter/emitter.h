@@ -8,7 +8,11 @@
 namespace LinRT {
     struct direct_sample {
         vec3 direction;
+        vec3 point;
+        vec3 normal;
         global_precision pdf = 0.0f;
+        // 无限远光源保持这个默认值。矩形光在 sample 里写成到着色点的距离。
+        global_precision distance = INFINITY;
         color radiance;
     };
 
@@ -32,6 +36,9 @@ namespace LinRT {
         virtual global_precision pdf(const vec3& shading_point, const vec3& direction) const = 0;
 
         virtual color eval(const vec3& direction) const = 0;
+
+        // 射线打到发光表面上时用。outgoing 从交点指向来时的方向。背面返回黑色。
+        virtual color emitted(const vec3&, const vec3&) const { return color(0.0f); }
 
         virtual bool is_infinite() const = 0;
     };
