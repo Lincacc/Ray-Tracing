@@ -35,6 +35,7 @@ namespace LinRT {
         vec3 n;
         vec3 uv;
         global_precision eta = 1.0f;
+        bool front_face = true; // true：射线在外部介质。玻璃据此选择 eta_i、eta_t
         global_precision pdf = 0.0f;     // 本次 sample 抽到 wo 的立体角密度
         unsigned int sampled_type = NONE; // 本次抽中的分量类型
         int sampled_component = -1;

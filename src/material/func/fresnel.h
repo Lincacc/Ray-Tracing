@@ -60,4 +60,35 @@ namespace LinRT {
             fresnel_conductor(cos_theta_i, eta.b, k.b)
         );
     }
+
+    struct dielectric_fresnel_result {
+        global_precision reflectance = 1.0f;
+        global_precision cos_theta_t = 0.0f;
+    };
+
+    // eta_i 是入射侧折射率，eta_t 是折射侧。全内反射时 reflectance 为 1，cos_theta_t 为 0。
+    inline dielectric_fresnel_result fresnel_dielectric(global_precision cos_theta_i,
+                                                        global_precision eta_i,
+                                                        global_precision eta_t) {
+        dielectric_fresnel_result result;
+        if(eta_i <= 0.0f || eta_t <= 0.0f) {
+            return result;
+        }
+
+        cos_theta_i = std::clamp(cos_theta_i, 0.0f, 1.0f);
+        const auto sin2_i = 1.0f - cos_theta_i * cos_theta_i;
+        const auto scale = eta_i / eta_t;
+        const auto sin2_t = scale * scale * sin2_i;
+        if(sin2_t > 1.0f) {
+            return result;
+        }
+
+        result.cos_theta_t = std::sqrt(1.0f - sin2_t);
+        const auto r_perp = (eta_i * cos_theta_i - eta_t * result.cos_theta_t)
+            / (eta_i * cos_theta_i + eta_t * result.cos_theta_t);
+        const auto r_parl = (eta_t * cos_theta_i - eta_i * result.cos_theta_t)
+            / (eta_t * cos_theta_i + eta_i * result.cos_theta_t);
+        result.reflectance = 0.5f * (r_perp * r_perp + r_parl * r_parl);
+        return result;
+    }
 }

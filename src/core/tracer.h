@@ -121,6 +121,7 @@ namespace LinRT {
             sample_record.n = normalize(rec.normal);
             // mitsuba: wi 指向上一跳的来源方向
             sample_record.wi = onb.world_to_local(-normalize(r.direction));
+            sample_record.front_face = rec.front_face;
 
             // 采样 bsdf
             bsdf_context ctx;

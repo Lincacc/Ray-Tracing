@@ -6,6 +6,7 @@
 #include "geometry/rectangle.h"
 #include "material/diffuse_bsdf.h"
 #include "material/rough_conductor_bsdf.h"
+#include "material/dielectric_bsdf.h"
 #include "accelerator/thread_pool.h"
 #include "emitter/area_emitter.h"
 #include "core/sampler.h"
@@ -35,14 +36,19 @@ int main() {
     world.add(sphere0);
 
     auto sphere1 = std::make_shared<LinRT::sphere>(LinRT::vec3(-1.0f, 0.0f, 0.0f), 0.5f);
-    auto metal = std::make_shared<LinRT::rough_conductor_bsdf>(LinRT::conductor_ior::copper(), 0.3f);
-    sphere1->set_material(metal);
+    auto metal_bsdf = std::make_shared<LinRT::rough_conductor_bsdf>(LinRT::conductor_ior::copper(), 0.3f);
+    sphere1->set_material(metal_bsdf);
     world.add(sphere1);
 
-    auto sphere2 = std::make_shared<LinRT::sphere>(LinRT::vec3(0.0f, -100.5f, 0.0f), 100.0f);
-    auto diffuse_bsdf1 = std::make_shared<LinRT::diffuse_bsdf>(LinRT::color(.8f, .8f, .0f));
-    sphere2->set_material(diffuse_bsdf1);
+    auto sphere2 = std::make_shared<LinRT::sphere>(LinRT::vec3(1.0f, 0.0f, 0.0f), 0.5f);
+    auto glass_bsdf = std::make_shared<LinRT::dielectric_bsdf>(1.5f, 1.0f);
+    sphere2->set_material(glass_bsdf);
     world.add(sphere2);
+
+    auto sphere3 = std::make_shared<LinRT::sphere>(LinRT::vec3(0.0f, -100.5f, 0.0f), 100.0f);
+    auto diffuse_bsdf1 = std::make_shared<LinRT::diffuse_bsdf>(LinRT::color(.8f, .8f, .0f));
+    sphere3->set_material(diffuse_bsdf1);
+    world.add(sphere3);
     
     auto env_emitter = std::make_shared<LinRT::env_emitter>(
         LinRT::vec3(0.6f, 0.4f, -0.7f), // 太阳方向，内部会归一化

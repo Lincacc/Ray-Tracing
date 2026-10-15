@@ -1,15 +1,12 @@
 #pragma once
 
 #include "core/color.h"
+#include "frame.h"
 
 #include <algorithm>
 #include <cmath>
 
 namespace LinRT {
-    inline vec3 reflect(const vec3& w, const vec3& n) {
-        return 2.0f * dot(w, n) * n - w;
-    }
-
     class ggx_distribution {
     public:
         explicit ggx_distribution(global_precision alpha)
