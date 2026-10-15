@@ -130,6 +130,7 @@ namespace LinRT {
             // 每个弹射固定 5 维：光源两个，材质两个，俄罗斯轮盘一个。
             // 和 Mitsuba path 一样，没用到也要取走，否则下一次弹射的维度会错位。
             const auto light_uv = sampler.next_2d();
+            ctx.lobe_sample = sampler.next_1d();
             const auto bsdf_uv = sampler.next_2d();
             const auto rr_u = sampler.next_1d();
 

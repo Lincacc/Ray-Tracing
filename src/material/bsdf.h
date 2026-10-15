@@ -26,6 +26,7 @@ namespace LinRT {
         transport_mode mode = transport_mode::RADIANCE;
         unsigned int type_mask = 0xffffffffu;
         int component = -1;
+        global_precision lobe_sample = 0.0f;
     };
 
     struct bsdf_sample_record {

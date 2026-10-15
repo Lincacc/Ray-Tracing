@@ -7,6 +7,7 @@
 #include "material/diffuse_bsdf.h"
 #include "material/rough_conductor_bsdf.h"
 #include "material/dielectric_bsdf.h"
+#include "material/rough_dielectric_bsdf.h"
 #include "accelerator/thread_pool.h"
 #include "emitter/area_emitter.h"
 #include "core/sampler.h"
@@ -41,7 +42,7 @@ int main() {
     world.add(sphere1);
 
     auto sphere2 = std::make_shared<LinRT::sphere>(LinRT::vec3(1.0f, 0.0f, 0.0f), 0.5f);
-    auto glass_bsdf = std::make_shared<LinRT::dielectric_bsdf>(1.5f, 1.0f);
+    auto glass_bsdf = std::make_shared<LinRT::rough_dielectric_bsdf>(1.5f, 1.0f, 0.05f);
     sphere2->set_material(glass_bsdf);
     world.add(sphere2);
 

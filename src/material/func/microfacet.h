@@ -25,10 +25,12 @@ namespace LinRT {
 
         // Smith 单方向遮蔽。v 与 m 朝向相反时，这条微表面从 v 看不见。
         global_precision smith_g1(const vec3& v, const vec3& m) const {
-            if(v.z < 1e-6f || dot(v, m) * v.z <= 0.0f) {
+            const auto cos_v = std::abs(v.z);
+            // dot(v, m) * v.z <= 0：v 和微表面法线不在同一侧，这条微表面从 v 看不见。
+            if(cos_v < 1e-6f || dot(v, m) * v.z <= 0.0f) {
                 return 0.0f;
             }
-
+            
             const auto tan_theta_alpha_2 = (alpha * alpha) * (v.x * v.x + v.y * v.y) / (v.z * v.z);
             const auto lambda = 0.5f * (-1.0f + std::sqrt(1.0f + tan_theta_alpha_2));
             return 1.0f / (1.0f + lambda);
