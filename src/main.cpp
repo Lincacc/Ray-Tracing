@@ -5,6 +5,7 @@
 #include "geometry/sphere.h"
 #include "geometry/rectangle.h"
 #include "material/diffuse_bsdf.h"
+#include "material/rough_conductor_bsdf.h"
 #include "accelerator/thread_pool.h"
 #include "emitter/area_emitter.h"
 #include "core/sampler.h"
@@ -33,10 +34,15 @@ int main() {
     sphere0->set_material(diffuse_bsdf);
     world.add(sphere0);
 
-    auto sphere1 = std::make_shared<LinRT::sphere>(LinRT::vec3(0.0f, -100.5f, 0.0f), 100.0f);
-    auto diffuse_bsdf1 = std::make_shared<LinRT::diffuse_bsdf>(LinRT::color(.8f, .8f, .0f));
-    sphere1->set_material(diffuse_bsdf1);
+    auto sphere1 = std::make_shared<LinRT::sphere>(LinRT::vec3(-1.0f, 0.0f, 0.0f), 0.5f);
+    auto metal = std::make_shared<LinRT::rough_conductor_bsdf>(LinRT::conductor_ior::copper(), 0.3f);
+    sphere1->set_material(metal);
     world.add(sphere1);
+
+    auto sphere2 = std::make_shared<LinRT::sphere>(LinRT::vec3(0.0f, -100.5f, 0.0f), 100.0f);
+    auto diffuse_bsdf1 = std::make_shared<LinRT::diffuse_bsdf>(LinRT::color(.8f, .8f, .0f));
+    sphere2->set_material(diffuse_bsdf1);
+    world.add(sphere2);
     
     auto env_emitter = std::make_shared<LinRT::env_emitter>(
         LinRT::vec3(0.6f, 0.4f, -0.7f), // 太阳方向，内部会归一化
@@ -50,13 +56,13 @@ int main() {
         LinRT::vec3(1.2f, 0.0f, 0.0f),
         LinRT::vec3(0.0f, 0.0f, 1.2f));
     auto area_rect_emitter = std::make_shared<LinRT::area_emitter>(light_rect, LinRT::color(12.0f));
-    // world.add(light_rect);
+    world.add(light_rect);
 
     auto light_sphere = std::make_shared<LinRT::sphere>(LinRT::vec3(1.2f, 0.4f, 0.0f), 0.3f);
-    auto area_sphere_emitter = std::make_shared<LinRT::area_emitter>(light_sphere, LinRT::color(12.0f));
-    world.add(light_sphere);
+    auto area_sphere_emitter = std::make_shared<LinRT::area_emitter>(light_sphere, LinRT::color(4.0f));
+    // world.add(light_sphere);
 
-    std::vector<std::shared_ptr<LinRT::emitter>> emitters{ area_sphere_emitter };
+    std::vector<std::shared_ptr<LinRT::emitter>> emitters{ area_rect_emitter };
 
     const auto start = std::chrono::steady_clock::now();
 
