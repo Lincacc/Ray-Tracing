@@ -47,6 +47,13 @@ namespace LinRT {
     public:
         virtual unsigned int flags() const = 0;
 
+        virtual int component_count() const { return 1; };
+
+        virtual unsigned int component_flags(int) const { return flags(); }
+
+        // 只有纯漫反射非 0。光子图在漫反射上乘的是反照率 / π，不是 eval() 的 f*cos。
+        virtual color diffuse_reflectance() const { return color(0.0f); }
+
         /**
          * @brief 1. 采样：根据入射方向和随机数，生成一条出射光线，并返回加权颜色 (f * cos_theta / pdf)
          * @param bRec 采样记录，传入 wi，输出 wo

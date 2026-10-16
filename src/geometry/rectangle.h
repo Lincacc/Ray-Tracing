@@ -54,6 +54,16 @@ namespace LinRT {
             return true;
         }
 
+        aabb bounds() const override {
+            aabb box;
+            box.extend(corner);
+            box.extend(corner + edge_u);
+            box.extend(corner + edge_v);
+            box.extend(corner + edge_u + edge_v);
+            
+            return box;
+        }
+
         void sample_position(const vec2& sample, vec3& p, vec3& n, global_precision& pdf) const override {
             p = corner + sample.x * edge_u + sample.y * edge_v;
             n = normal;

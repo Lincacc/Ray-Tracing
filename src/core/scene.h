@@ -37,6 +37,25 @@ namespace LinRT {
             return shapes.hit(r, t_min, t_max, rec);
         }
 
+        // Mitsuba AABB::getBSphere：中心到盒子角点的距离。
+        global_precision bounding_sphere_radius() const {
+            const auto box = shapes.bounds();
+            const auto half = (box.maximum - box.minimum) * 0.5f;
+            return half.length();
+        }
+
+        // PhotonMapIntegrator::configureSampler：没有任何 delta BSDF 时不发射焦散光子。
+        bool has_delta_bsdf() const {
+            bool found = false;
+            shapes.for_each([&](const hittable& shape) {
+                const auto material = shape.get_material();
+                if(material && (material->flags() & SPECULAR) != 0) {
+                    found = true;
+                }
+            });
+            return found;
+        }
+
         const camera& sensor() const { return sensor_; }
 
         // 飞出场景时的环境辐射。只累加无限远光源的 eval。

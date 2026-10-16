@@ -48,6 +48,14 @@ namespace LinRT {
             return true;
         }
 
+        aabb bounds() const override {
+            aabb box;
+            box.extend(center - vec3(radius));
+            box.extend(center + vec3(radius));
+
+            return box;
+        }
+
         void sample_position(const vec2& sample, vec3& p, vec3& n, global_precision& pdf) const override {
             const auto z = 1.0f - 2.0f * sample.y;
             const auto ring = std::sqrt(std::max(0.0f, 1.0f - z * z));

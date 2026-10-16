@@ -7,6 +7,10 @@
 #include <algorithm>
 #include <cmath>
 
+/*
+    从相机出发，沿途做直接光抽样，再做 BSDF 采样。
+*/
+
 namespace LinRT {
     // Mitsuba 的 path。弹射、直接光和幂启发式与原来的 trace 相同，选灯改走 scene。
     class path_integrator {

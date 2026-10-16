@@ -1,6 +1,7 @@
 #pragma once
 
 #include "geometry/hittable.h"
+#include "accelerator/aabb.h"
 
 #include <memory>
 #include <vector>
@@ -12,6 +13,7 @@ namespace LinRT {
         hittable_list(std::shared_ptr<hittable> object) { add(object); }
 
         void add(std::shared_ptr<hittable> object) { objects.push_back(object); }
+
         void clear() { objects.clear(); }
 
         bool hit(const ray& r, global_precision t_min, global_precision t_max, hit_record& rec) const {
@@ -29,6 +31,21 @@ namespace LinRT {
             }
 
             return hit_anything;
+        }
+
+        template <typename Visitor>
+        void for_each(Visitor&& visitor) const {
+            for(const auto& object : objects) {
+                visitor(*object);
+            }
+        }
+
+        aabb bounds() const {
+            aabb box;
+            for(const auto& object : objects) {
+                box.extend(object->bounds());
+            }
+            return box;
         }
 
     private:

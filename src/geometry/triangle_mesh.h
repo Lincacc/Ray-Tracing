@@ -98,6 +98,14 @@ namespace LinRT {
             return true;
         }
 
+        aabb bounds() const override {
+            aabb box;
+            for(const auto& position : positions) {
+                box.extend(position);
+            }
+            return box;
+        }
+        
         void sample_position(const vec2& sample, vec3& p, vec3& n, global_precision& pdf) const override {
             pdf = 0.0f;
             if(area <= 0.0f || area_cdf.empty()) {

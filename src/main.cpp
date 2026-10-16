@@ -2,7 +2,8 @@
 #include "io/obj_loader.h"
 #include "core/scene.h"
 #include "core/camera.h"
-#include "integrator/path_integrator.h"
+#include "integrator/path/path_integrator.h"
+#include "integrator/photonmapper/photon_integrator.h"
 #include "core/hittable_list.h"
 #include "geometry/sphere.h"
 #include "geometry/rectangle.h"
@@ -41,7 +42,7 @@ int main() {
         return 1;
     }
     mesh->translate(LinRT::vec3(0.0f, 0.0f, 0.0f));
-    mesh->set_material(std::make_shared<LinRT::diffuse_bsdf>(LinRT::color(0.8f, 0.8f, 0.8f)));
+    mesh->set_material(std::make_shared<LinRT::rough_dielectric_bsdf>(1.5f, 1.0f, 0.1f));
     world.add(mesh);
 
     auto sphere0 = std::make_shared<LinRT::sphere>(LinRT::vec3(0.0f), 0.5f);
@@ -84,7 +85,10 @@ int main() {
 
     std::vector<std::shared_ptr<LinRT::emitter>> emitters{ area_rect_emitter };
     LinRT::scene render_scene(std::move(world), std::move(emitters), camera);
-    const LinRT::path_integrator integrator;
+
+    // const LinRT::path_integrator integrator;
+    LinRT::photon_integrator integrator;
+    integrator.preprocess(render_scene);
 
     const auto start = std::chrono::steady_clock::now();
 

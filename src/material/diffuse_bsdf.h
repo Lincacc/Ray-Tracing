@@ -11,6 +11,10 @@ namespace LinRT {
             return DIFFUSE | REFLECTIVE;
         }
 
+        color diffuse_reflectance() const override {
+            return albedo;
+        }
+
         color sample(const bsdf_context& ctx, bsdf_sample_record& sample_record, const vec2& sample) const override {
             constexpr auto lobe = DIFFUSE | REFLECTIVE;
 

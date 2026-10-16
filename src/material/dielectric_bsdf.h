@@ -20,6 +20,14 @@ namespace LinRT {
             return reflection_lobe | transmission_lobe; 
         }
 
+        int component_count() const override {
+            return 2;
+        }
+
+        unsigned int component_flags(int index) const override {
+            return index == 0 ? reflection_lobe : transmission_lobe;
+        }
+
         color sample(const bsdf_context& ctx, bsdf_sample_record& sample_record, const vec2& sample) const override {
             sample_record.pdf = 0.0f;
             sample_record.eta = 1.0f;

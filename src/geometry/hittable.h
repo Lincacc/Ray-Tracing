@@ -3,6 +3,7 @@
 #include "core/ray.h"
 #include "material/bsdf.h"
 #include "emitter/emitter.h"
+#include "accelerator/aabb.h"
 
 #include <memory>
 
@@ -36,6 +37,8 @@ namespace LinRT {
          */
         virtual bool hit(const ray& r, global_precision t_min, global_precision t_max, hit_record& rec) const = 0;
     
+        virtual aabb bounds() const = 0;
+
         /**
          * @brief 设置物体的材质
          * 
