@@ -4,6 +4,8 @@
 #include "material/bsdf.h"
 #include "emitter/emitter.h"
 
+#include <memory>
+
 namespace LinRT {
     class bsdf;
 

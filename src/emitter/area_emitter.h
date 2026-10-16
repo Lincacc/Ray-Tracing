@@ -2,6 +2,7 @@
 
 #include "emitter.h"
 #include "geometry/hittable.h"
+#include "core/onb.h"
 
 namespace LinRT {
     class area_emitter : public emitter {
@@ -85,6 +86,64 @@ namespace LinRT {
 
         bool is_infinite() const override {
             return false;
+        }
+
+        // Mitsuba AreaLight::sampleRay：余弦加权半球，返回 m_power = Le * π * area。
+        // 余弦密度是 cosθ/π，所以 weight * pdf_position * pdf_direction = Le * cosθ。
+        bool sample_ray(const vec2& spatial, const vec2& directional, emitter_ray_sample& out) const override {
+            if(!shape_ptr || shape_ptr->get_area() <= 0.0f) {
+                return false;
+            }
+
+            vec3 p, n;
+            global_precision pdf_area = 0.0f;
+            shape_ptr->sample_position(spatial, p, n, pdf_area);
+            if(pdf_area <= 0.0f) {
+                return false;
+            }
+
+            // 和 diffuse_bsdf 相同的余弦半球：cosθ = sqrt(ξ0)，φ = 2π ξ1。密度 cosθ/π。
+            const auto cos_theta = std::sqrt(directional.x);
+            const auto sin_theta = std::sqrt(1.0f - directional.x);
+            const auto phi = 2.0f * M_PI<global_precision> * directional.y;
+            const vec3 local(std::cos(phi) * sin_theta, std::sin(phi) * sin_theta, cos_theta);
+
+            onb frame;
+            frame.build_from_normal(n);
+
+            out.emitted = ray(p, frame.local_to_world(local));
+            out.normal = n;
+            out.pdf_position = pdf_area;
+            out.pdf_direction = cos_theta * (1.0f / M_PI<global_precision>);
+            out.weight = power();
+            out.selection_pdf = 1.0f;
+            out.emitter_ptr = this;
+            return true;
+        }
+
+        global_precision pdf_position() const override {
+            if(!shape_ptr || shape_ptr->get_area() <= 0.0f) {
+                return 0.0f;
+            }
+            return 1.0f / shape_ptr->get_area();
+        }
+
+        global_precision pdf_direction(const vec3& normal, const vec3& direction) const override {
+            const auto n = normalize(normal);
+            const auto d = normalize(direction);
+            const auto cos_theta = dot(n, d);
+            if(cos_theta <= 0.0f) {
+                return 0.0f;
+            }
+            return cos_theta * (1.0f / M_PI<global_precision>);
+        }
+
+        color power() const override {
+            if(!shape_ptr || shape_ptr->get_area() <= 0.0f) {
+                return color(0.0f);
+            }
+            // Mitsuba AreaLight::setParent：m_power = m_radiance * π * surfaceArea。
+            return radiance * (M_PI<global_precision> * shape_ptr->get_area());
         }
 
     private:

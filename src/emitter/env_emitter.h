@@ -91,6 +91,24 @@ namespace LinRT {
             return true;
         }
 
+        // sample() 只抽太阳圆锥，那是下一事件的立体角密度。
+        // 环境光没有表面积，不能按 AreaLight 的面积 × 余弦半球发射。
+        bool sample_ray(const vec2&, const vec2&, emitter_ray_sample&) const override {
+            return false;
+        }
+
+        global_precision pdf_position() const override {
+            return 0.0f;
+        }
+
+        global_precision pdf_direction(const vec3&, const vec3&) const override {
+            return 0.0f;
+        }
+
+        color power() const override {
+            return color(0.0f);
+        }
+
     private:
         struct state_deleter {
             void operator()(ArHosekSkyModelState* p) const { arhosekskymodelstate_free(p); }

@@ -2,6 +2,9 @@
 
 #include "geometry/hittable.h"
 
+#include <memory>
+#include <vector>
+
 namespace LinRT {
     class hittable_list{
     public:

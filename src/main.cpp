@@ -1,7 +1,8 @@
 #include "io/image_write.h"
 #include "io/obj_loader.h"
-#include "core/tracer.h"
+#include "core/scene.h"
 #include "core/camera.h"
+#include "integrator/path_integrator.h"
 #include "core/hittable_list.h"
 #include "geometry/sphere.h"
 #include "geometry/rectangle.h"
@@ -11,6 +12,7 @@
 #include "material/rough_dielectric_bsdf.h"
 #include "accelerator/thread_pool.h"
 #include "emitter/area_emitter.h"
+#include "emitter/env_emitter.h"
 #include "core/sampler.h"
 
 #include <chrono>
@@ -81,6 +83,8 @@ int main() {
     // world.add(light_sphere);
 
     std::vector<std::shared_ptr<LinRT::emitter>> emitters{ area_rect_emitter };
+    LinRT::scene render_scene(std::move(world), std::move(emitters), camera);
+    const LinRT::path_integrator integrator;
 
     const auto start = std::chrono::steady_clock::now();
 
@@ -112,8 +116,8 @@ int main() {
                                 const auto v = (static_cast<LinRT::global_precision>(y) + offset.y)
                                     / static_cast<LinRT::global_precision>(HEIGHT - 1);
                                 
-                                auto ray = camera.get_ray(u, v);
-                                pixel_color += LinRT::trace(ray, world, emitters, sampler);
+                                auto ray = render_scene.sensor().get_ray(u, v);
+                                pixel_color += integrator.radiance(ray, render_scene, sampler);
                             }
                             pixels[static_cast<size_t>(y) * WIDTH + x] =
                                 pixel_color / static_cast<LinRT::global_precision>(SAMPLES_PER_PIXEL);

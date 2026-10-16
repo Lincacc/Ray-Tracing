@@ -71,7 +71,84 @@ namespace LinRT {
                 normalize(ray_target - ray_origin)
             );
         }
-        
+
+        // 把场景中的点投回 get_ray 使用的视口。s、t 与 get_ray 的参数相同，范围 [0, 1]。
+        // cos_theta 是「从相机指向该点」与相机朝向 -w 的夹角余弦。
+        // 只有针孔（lens_radius == 0）有这个逆变换。光圈不为 0 时射线原点不在一点上。
+        bool project(const vec3& point, global_precision& s, global_precision& t, global_precision& cos_theta) const {
+            const auto to_point = point - origin;
+            const auto dist = to_point.length();
+            if(dist <= 0.0f) {
+                return false;
+            }
+            return film_coords(to_point / dist, s, t, cos_theta);
+        }
+
+        // Mitsuba PerspectiveCamera::importance。
+        // 均匀采样单位距离处的视口矩形，面积是 A'，立体角密度是 1 / (A' * cos³θ)。
+        // 方向落在视口外或相机背后时返回 0。
+        global_precision pdf_direction(const vec3& world_direction) const {
+            const auto length = world_direction.length();
+            if(length <= 0.0f) {
+                return 0.0f;
+            }
+
+            global_precision s = 0.0f;
+            global_precision t = 0.0f;
+            global_precision cos_theta = 0.0f;
+            if(!film_coords(world_direction / length, s, t, cos_theta)) {
+                return 0.0f;
+            }
+
+            const auto area = unit_rect_area();
+            if(area <= 0.0f) {
+                return 0.0f;
+            }
+            return 1.0f / (area * cos_theta * cos_theta * cos_theta);
+        }
+
+        // 相机朝向前方、距离原点 1 的那块视口矩形的面积。focus_dist 会在这里约掉。
+        global_precision unit_rect_area() const {
+            const auto center = lower_left_corner + horizontal * 0.5f + vertical * 0.5f;
+            const auto dist2 = (center - origin).length_squared();
+            if(dist2 <= 0.0f) {
+                return 0.0f;
+            }
+            return horizontal.length() * vertical.length() / dist2;
+        }
+
+    private:
+        bool film_coords(const vec3& unit_dir, global_precision& s, global_precision& t,
+                        global_precision& cos_theta) const {
+            if(lens_radius > 0.0f) {
+                return false;
+            }
+
+            cos_theta = dot(unit_dir, -w);
+            if(cos_theta <= 0.0f) {
+                return false;
+            }
+
+            const auto center = lower_left_corner + horizontal * 0.5f + vertical * 0.5f;
+            const auto focus = (center - origin).length();
+            if(focus <= 0.0f) {
+                return false;
+            }
+
+            // 视口平面过 center，法线是 w。单位方向走到该平面的距离是 focus / cosθ。
+            const auto hit = origin + (focus / cos_theta) * unit_dir;
+            const auto rel = hit - lower_left_corner;
+            const auto hu = dot(horizontal, horizontal);
+            const auto hv = dot(vertical, vertical);
+            if(hu <= 0.0f || hv <= 0.0f) {
+                return false;
+            }
+
+            s = dot(rel, horizontal) / hu;
+            t = dot(rel, vertical) / hv;
+            return s >= 0.0f && s <= 1.0f && t >= 0.0f && t <= 1.0f;
+        }
+
     public:
         vec3 origin;
         vec3 look_at;
