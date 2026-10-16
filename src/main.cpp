@@ -25,6 +25,9 @@ constexpr int SAMPLES_PER_PIXEL = 128;
 
 constexpr int TILE = 32;
 
+#define USE_PHOTON_MAP
+// #define USE_PATH_INTEGRATOR
+
 int main() {
     LinRT::camera camera;
     camera.origin = LinRT::vec3(.0f,.5f,3.0f);
@@ -86,12 +89,18 @@ int main() {
     std::vector<std::shared_ptr<LinRT::emitter>> emitters{ area_rect_emitter };
     LinRT::scene render_scene(std::move(world), std::move(emitters), camera);
 
-    // const LinRT::path_integrator integrator;
+#ifdef USE_PATH_INTEGRATOR
+    const LinRT::path_integrator integrator;
+#elif defined(USE_PHOTON_MAP)
+    const auto photon_map_build_start = std::chrono::steady_clock::now();
     LinRT::photon_integrator integrator;
     integrator.preprocess(render_scene);
+    const auto photon_map_build_end = std::chrono::steady_clock::now();
+    const auto photon_map_build_time = std::chrono::duration<double>(photon_map_build_end - photon_map_build_start).count();
+    std::cout << "Photon map build time: " << photon_map_build_time << " seconds\n";
+#endif
 
     const auto start = std::chrono::steady_clock::now();
-
     std::vector<LinRT::color> pixels(WIDTH * HEIGHT);
 
     const auto total = static_cast<long long>(WIDTH) * HEIGHT;

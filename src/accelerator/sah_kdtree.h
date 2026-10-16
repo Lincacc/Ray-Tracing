@@ -8,6 +8,7 @@
 #include <limits>
 #include <utility>
 #include <vector>
+#include <array>
 
 namespace LinRT {
     // Mitsuba 0.6 加速三角形用的是 SAH kd-tree，不是每个节点带两个子包围盒的二叉树 BVH。
@@ -69,7 +70,8 @@ namespace LinRT {
                 global_precision maxt = 0.0f;
             };
 
-            std::vector<item> stack;
+            std::array<item, 48> stack;
+            int top = 0;
             auto mint = t_min;
             auto maxt = closest;
             auto node = 0;
@@ -86,11 +88,12 @@ namespace LinRT {
                         test(ordered[static_cast<size_t>(current.first + i)], mint, limit);
                         limit = std::min(maxt, closest);
                     }
-                    if(stack.empty()) {
+
+                    if(top == 0) {
                         break;
                     }
-                    const auto next = stack.back();
-                    stack.pop_back();
+
+                    const auto next = stack[static_cast<std::size_t>(--top)];
                     node = next.node;
                     mint = next.mint;
                     maxt = next.maxt;
@@ -110,7 +113,7 @@ namespace LinRT {
                 } else if(t_plane < mint) {
                     node = second;
                 } else {
-                    stack.push_back(item{second, t_plane, maxt});
+                    stack[static_cast<std::size_t>(top++)] = item{second, t_plane, maxt};
                     node = first;
                     maxt = t_plane;
                 }

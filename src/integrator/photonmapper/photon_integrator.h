@@ -1,7 +1,7 @@
 #pragma once
 
 #include "integrator/photonmapper/photon_map.h"
-#include "integrator/photonmapper/photon_tracer.h"
+#include "integrator/photonmapper/photon_gather.h"
 #include "core/scene.h"
 #include "core/sampler.h"
 #include "core/onb.h"
@@ -22,15 +22,14 @@ namespace LinRT {
                 caustic_requested = 0;
             }
 
-            photon_tracer tracer;
-            // 光子追踪的最大深度是眼睛路径上限减一，与 preprocess 里的 m_maxDepth - 1 相同。
-            const auto global = tracer.gather_map(
+            photon_gather gather;
+            const auto global = gather.run(
                 world, photon_tracer::gather::surface, global_photons, max_depth - 1, rr_depth);
             if(global.full) {
                 global_map.build(global.photons, 1.0f / static_cast<global_precision>(global.shot));
             }
 
-            const auto caustic = tracer.gather_map(
+            const auto caustic = gather.run(
                 world, photon_tracer::gather::caustic, caustic_requested, max_depth - 1, rr_depth);
             if(caustic.full) {
                 caustic_map.build(caustic.photons, 1.0f / static_cast<global_precision>(caustic.shot));
