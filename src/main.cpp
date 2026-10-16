@@ -11,6 +11,7 @@
 #include "material/rough_conductor_bsdf.h"
 #include "material/dielectric_bsdf.h"
 #include "material/rough_dielectric_bsdf.h"
+#include "material/plastic_bsdf.h"
 #include "accelerator/thread_pool.h"
 #include "emitter/area_emitter.h"
 #include "emitter/env_emitter.h"
@@ -25,8 +26,8 @@ constexpr int SAMPLES_PER_PIXEL = 128;
 
 constexpr int TILE = 32;
 
-#define USE_PHOTON_MAP
-// #define USE_PATH_INTEGRATOR
+#define USE_PATH_INTEGRATOR
+// #define USE_PHOTON_MAP
 
 int main() {
     LinRT::camera camera;
@@ -45,7 +46,9 @@ int main() {
         return 1;
     }
     mesh->translate(LinRT::vec3(0.0f, 0.0f, 0.0f));
-    mesh->set_material(std::make_shared<LinRT::rough_dielectric_bsdf>(1.5f, 1.0f, 0.1f));
+    // Mitsuba plastic 默认：内部 polypropylene 1.49，外部 air 1.000277，镜面反射率 1。
+    mesh->set_material(std::make_shared<LinRT::plastic_bsdf>(
+        1.49f, 1.000277f, LinRT::color(1.0f), LinRT::color(0.8f, 0.1f, 0.05f)));
     world.add(mesh);
 
     auto sphere0 = std::make_shared<LinRT::sphere>(LinRT::vec3(0.0f), 0.5f);
