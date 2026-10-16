@@ -1,4 +1,5 @@
 #include "io/image_write.h"
+#include "io/obj_loader.h"
 #include "core/tracer.h"
 #include "core/camera.h"
 #include "core/hittable_list.h"
@@ -31,20 +32,30 @@ int main() {
         / static_cast<LinRT::global_precision>(HEIGHT)); // aspect ratio
 
     LinRT::hittable_list world;
+
+    auto mesh = LinRT::load_obj("assets/bunny.obj");
+    if(!mesh) {
+        std::cerr << "obj failed\n";
+        return 1;
+    }
+    mesh->translate(LinRT::vec3(0.0f, 0.0f, 0.0f));
+    mesh->set_material(std::make_shared<LinRT::diffuse_bsdf>(LinRT::color(0.8f, 0.8f, 0.8f)));
+    world.add(mesh);
+
     auto sphere0 = std::make_shared<LinRT::sphere>(LinRT::vec3(0.0f), 0.5f);
     auto diffuse_bsdf = std::make_shared<LinRT::diffuse_bsdf>(LinRT::color(.3f, .6f, .6f));
     sphere0->set_material(diffuse_bsdf);
-    world.add(sphere0);
+    // world.add(sphere0);
 
     auto sphere1 = std::make_shared<LinRT::sphere>(LinRT::vec3(-1.0f, 0.0f, 0.0f), 0.5f);
     auto metal_bsdf = std::make_shared<LinRT::rough_conductor_bsdf>(LinRT::conductor_ior::copper(), 0.3f);
     sphere1->set_material(metal_bsdf);
-    world.add(sphere1);
+    // world.add(sphere1);
 
     auto sphere2 = std::make_shared<LinRT::sphere>(LinRT::vec3(1.0f, 0.0f, 0.0f), 0.5f);
     auto glass_bsdf = std::make_shared<LinRT::rough_dielectric_bsdf>(1.5f, 1.0f, 0.05f);
     sphere2->set_material(glass_bsdf);
-    world.add(sphere2);
+    // world.add(sphere2);
 
     auto sphere3 = std::make_shared<LinRT::sphere>(LinRT::vec3(0.0f, -100.5f, 0.0f), 100.0f);
     auto diffuse_bsdf1 = std::make_shared<LinRT::diffuse_bsdf>(LinRT::color(.8f, .8f, .0f));
