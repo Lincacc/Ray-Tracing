@@ -2,7 +2,14 @@
 
 #include "core/vec3.h"
 
+#include <cmath>
+
 namespace LinRT {
+    // Mitsuba |dot(wo, wo_delta) - 1| < DeltaEpsilon。
+    inline bool delta_aligned(const vec3& sampled, const vec3& wo) {
+        return std::abs(dot(sampled, wo) - 1.0f) < delta_epsilon;
+    }
+
     inline vec3 reflect(const vec3& w, const vec3& n) {
         return 2.0f * dot(w, n) * n - w;
     }

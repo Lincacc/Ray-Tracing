@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bsdf.h"
+#include "func/frame.h"
 #include "func/microfacet.h"
 #include "func/fresnel.h"
 
@@ -39,8 +40,7 @@ namespace LinRT {
                 sample_record.wo = vec3(-sample_record.wi.x, -sample_record.wi.y, sample_record.wi.z);
                 sample_record.sampled_type = lobe;
                 sample_record.sampled_component = 0;
-                // 连续密度是 0。权重只剩菲涅尔：delta 和余弦在这个测度下相消。
-                // pdf 若误写成 1，积分器会拿它和光源做 MIS，镜子里的灯会被压暗。
+                sample_record.pdf = 1.0f;
                 return fresnel_conductor(sample_record.wi.z, eta, k) * specular_reflectance;
             }
 
@@ -67,17 +67,33 @@ namespace LinRT {
             return lobe_value.first / lobe_value.second;
         }
 
-        color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const override {
-            if(delta) { return 0.0f;}
-            if((ctx.type_mask & lobe) == 0) { return 0.0f;}
-            if(ctx.component != -1 && ctx.component != 0) { return 0.0f;}
+        color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
+            if((ctx.type_mask & lobe) == 0) { return color(0.0f); }
+            if(ctx.component != -1 && ctx.component != 0) { return color(0.0f); }
+            if(delta) {
+                if(meas != measure::discrete || sample_record.wo.z <= 0.0f
+                    || !delta_aligned(vec3(-sample_record.wi.x, -sample_record.wi.y, sample_record.wi.z),
+                                      sample_record.wo)) {
+                    return color(0.0f);
+                }
+                return fresnel_conductor(sample_record.wi.z, eta, k) * specular_reflectance;
+            }
+            if(meas != measure::solid_angle) { return color(0.0f); }
             return eval_and_pdf(sample_record.wi, sample_record.wo).first;
         }
 
-        global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const override {
-            if(delta) { return 0.0f;}
-            if((ctx.type_mask & lobe) == 0) { return 0.0f;}
-            if(ctx.component != -1 && ctx.component != 0) { return 0.0f;}
+        global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
+            if((ctx.type_mask & lobe) == 0) { return 0.0f; }
+            if(ctx.component != -1 && ctx.component != 0) { return 0.0f; }
+            if(delta) {
+                if(meas != measure::discrete || sample_record.wo.z <= 0.0f
+                    || !delta_aligned(vec3(-sample_record.wi.x, -sample_record.wi.y, sample_record.wi.z),
+                                      sample_record.wo)) {
+                    return 0.0f;
+                }
+                return 1.0f;
+            }
+            if(meas != measure::solid_angle) { return 0.0f; }
             return eval_and_pdf(sample_record.wi, sample_record.wo).second;
         }
 

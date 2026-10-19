@@ -5,6 +5,16 @@
 #include "core/vec2.h"
 
 namespace LinRT {
+    // Mitsuba include/mitsuba/core/common.h 的 EMeasure。
+    enum class measure : int {
+        invalid = 0,
+        solid_angle,
+        inv_solid_angle,
+        length,
+        area,
+        discrete
+    };
+
     enum bsdf_flags : unsigned int {
         NONE        = 0,
         DIFFUSE     = 1u << 0,
@@ -37,7 +47,7 @@ namespace LinRT {
         vec3 uv;
         global_precision eta = 1.0f;
         bool front_face = true; // true：射线在外部介质。玻璃据此选择 eta_i、eta_t
-        global_precision pdf = 0.0f;     // 本次 sample 抽到 wo 的立体角密度
+        global_precision pdf = 0.0f;     // sample 写出的密度；测度由 sampled_type 经 measure_of 决定
         unsigned int sampled_type = NONE; // 本次抽中的分量类型
         int sampled_component = -1;
     };
@@ -54,6 +64,11 @@ namespace LinRT {
         // 只有纯漫反射非 0。光子图在漫反射上乘的是反照率 / π，不是 eval() 的 f*cos。
         virtual color diffuse_reflectance() const { return color(0.0f); }
 
+        // Mitsuba BSDF::getMeasure：带 delta 位就是离散测度，否则是立体角。
+        static measure measure_of(unsigned int sampled_type) {
+            return (sampled_type & SPECULAR) != 0 ? measure::discrete : measure::solid_angle;
+        }
+
         /**
          * @brief 1. 采样：根据入射方向和随机数，生成一条出射光线，并返回加权颜色 (f * cos_theta / pdf)
          * @param bRec 采样记录，传入 wi，输出 wo
@@ -65,11 +80,11 @@ namespace LinRT {
         /**
          * @brief 2. 求值：给定入射方向 wi 和出射方向 wo，计算表面反射率 f * cos_theta
          */
-        virtual color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const = 0;
+        virtual color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const = 0;
 
         /**
          * @brief 3. 概率密度：给定 wi 和 wo，计算通过该材质采样到 wo 的概率密度函数值 (PDF)
          */
-        virtual global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const = 0;
+        virtual global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const = 0;
     };
 }

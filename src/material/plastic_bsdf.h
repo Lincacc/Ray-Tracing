@@ -58,7 +58,7 @@ namespace LinRT {
                     sample_record.wo = reflect(sample_record.wi, vec3(0.0f, 0.0f, 1.0f));
                     sample_record.sampled_type = specular_lobe;
                     sample_record.sampled_component = 0;
-                    // 镜面是离散密度。pdf 保持 0，避免和光源的立体角密度做 MIS。
+                    sample_record.pdf = prob_specular;
                     return specular_reflectance * (fresnel_i / prob_specular);
                 }
 
@@ -77,6 +77,7 @@ namespace LinRT {
                 sample_record.wo = reflect(sample_record.wi, vec3(0.0f, 0.0f, 1.0f));
                 sample_record.sampled_type = specular_lobe;
                 sample_record.sampled_component = 0;
+                sample_record.pdf = 1.0f;
                 return specular_reflectance * fresnel_i;
             }
 
@@ -89,24 +90,51 @@ namespace LinRT {
             return diffuse_weight(fresnel_i, fresnel_o);
         }
 
-        color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const override {
-            // 这里没有离散测度。镜面 delta 在立体角下是 0，只留下漫反射瓣。
-            if(!diffuse_allowed(ctx) || sample_record.wi.z <= 0.0f || sample_record.wo.z <= 0.0f) {
+        color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
+            const bool allow_specular = specular_allowed(ctx);
+            const bool allow_diffuse = diffuse_allowed(ctx);
+            if(sample_record.wi.z <= 0.0f) {
                 return color(0.0f);
             }
 
+            if(meas == measure::discrete) {
+                if(!allow_specular
+                    || !delta_aligned(reflect(sample_record.wi, vec3(0.0f, 0.0f, 1.0f)), sample_record.wo)) {
+                    return color(0.0f);
+                }
+                return specular_reflectance * fresnel_dielectric_ext(sample_record.wi.z, eta);
+            }
+
+            if(meas != measure::solid_angle || !allow_diffuse || sample_record.wo.z <= 0.0f) {
+                return color(0.0f);
+            }
             const auto fresnel_i = fresnel_dielectric_ext(sample_record.wi.z, eta);
             const auto fresnel_o = fresnel_dielectric_ext(sample_record.wo.z, eta);
             return diffuse_weight(fresnel_i, fresnel_o) * (sample_record.wo.z / M_PI<global_precision>);
         }
 
-        global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const override {
-            if(!diffuse_allowed(ctx) || sample_record.wi.z <= 0.0f || sample_record.wo.z <= 0.0f) {
+        global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
+            const bool allow_specular = specular_allowed(ctx);
+            const bool allow_diffuse = diffuse_allowed(ctx);
+            if(sample_record.wi.z <= 0.0f) {
                 return 0.0f;
             }
 
+            if(meas == measure::discrete) {
+                if(!allow_specular
+                    || !delta_aligned(reflect(sample_record.wi, vec3(0.0f, 0.0f, 1.0f)), sample_record.wo)) {
+                    return 0.0f;
+                }
+                return allow_diffuse
+                    ? lobe_probability(fresnel_dielectric_ext(sample_record.wi.z, eta))
+                    : 1.0f;
+            }
+
+            if(meas != measure::solid_angle || !allow_diffuse || sample_record.wo.z <= 0.0f) {
+                return 0.0f;
+            }
             auto prob_specular = 0.0f;
-            if(specular_allowed(ctx)) {
+            if(allow_specular) {
                 prob_specular = lobe_probability(fresnel_dielectric_ext(sample_record.wi.z, eta));
             }
             return (sample_record.wo.z / M_PI<global_precision>) * (1.0f - prob_specular);

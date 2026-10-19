@@ -13,6 +13,7 @@
 #include "material/rough_dielectric_bsdf.h"
 #include "material/plastic_bsdf.h"
 #include "material/rough_plastic_bsdf.h"
+#include "material/coating_bsdf.h"
 #include "accelerator/thread_pool.h"
 #include "emitter/area_emitter.h"
 #include "emitter/env_emitter.h"
@@ -30,27 +31,23 @@ constexpr int TILE = 32;
 #if 0
 #define USE_PATH_INTEGRATOR
 #else
-#define USE_PHOTON_MAP
+#define USE_PHOTON_MAP_INTEGRATOR
 #endif
 
 const auto diffuse = std::make_shared<LinRT::diffuse_bsdf>(LinRT::color(.3f, .6f, .6f));
 const auto metal = std::make_shared<LinRT::rough_conductor_bsdf>(LinRT::conductor_ior::copper(), 0.3f);
 const auto glass = std::make_shared<LinRT::dielectric_bsdf>(1.5f, 1.0f);
 const auto rough_glass = std::make_shared<LinRT::rough_dielectric_bsdf>(1.5f, 1.0f, 0.05f);
-const auto plastic = std::make_shared<LinRT::plastic_bsdf>(1.49f, 1.000277f, LinRT::color(1.0f), LinRT::color(0.8f, 0.1f, 0.05f));
+const auto plastic = std::make_shared<LinRT::plastic_bsdf>(1.49f, 1.000277f, LinRT::color(1.0f), LinRT::color(0.8f, 0.8f, 0.5f));
 const auto rough_plastic = std::make_shared<LinRT::rough_plastic_bsdf>(1.49f, 1.000277f, 0.1f, LinRT::color(1.0f), LinRT::color(0.8f, 0.1f, 0.05f));
+const auto coated_copper = std::make_shared<LinRT::coating_bsdf>(
+    1.7f, 1.000277f, plastic, LinRT::color(0.3,0.6,0.6));
 
 const auto env_emitter = std::make_shared<LinRT::env_emitter>(
     LinRT::vec3(0.6f, 0.4f, -0.7f), // 太阳方向，内部会归一化
     3.0f,                            // 浑浊度
     0.3f,                            // 地面反照率
     0.05f);                         // 曝光，画面全白就再调小
-
-const auto rect_emitter = std::make_shared<LinRT::area_emitter>(
-    std::make_shared<LinRT::rectangle>(
-        LinRT::vec3(-0.6f, 1.5f, -0.6f),
-        LinRT::vec3(1.2f, 0.0f, 0.0f),
-        LinRT::vec3(0.0f, 0.0f, 1.2f)), LinRT::color(12.0f));
 
 const auto sphere_emitter = std::make_shared<LinRT::area_emitter>(
     std::make_shared<LinRT::sphere>(LinRT::vec3(1.2f, 0.4f, 0.0f), 0.3f), LinRT::color(4.0f));
@@ -72,24 +69,26 @@ int main() {
         return 1;
     }
     mesh->translate(LinRT::vec3(0.0f, 0.0f, 0.0f));
-    mesh->set_material(rough_plastic);
+    mesh->set_material(coated_copper);
     world.add(mesh);
 
     auto plane = std::make_shared<LinRT::sphere>(LinRT::vec3(0.0f, -100.5f, 0.0f), 100.0f);
     plane->set_material(std::make_shared<LinRT::diffuse_bsdf>(LinRT::color(.8f, .8f, .0f)));
     world.add(plane);
     
-    world.add(std::make_shared<LinRT::rectangle>(
+    auto rect = std::make_shared<LinRT::rectangle>(
         LinRT::vec3(-0.6f, 1.5f, -0.6f),
         LinRT::vec3(1.2f, 0.0f, 0.0f),
-        LinRT::vec3(0.0f, 0.0f, 1.2f)));
+        LinRT::vec3(0.0f, 0.0f, 1.2f));
+    auto rect_emitter = std::make_shared<LinRT::area_emitter>(rect, LinRT::color(12.0f));        
+    world.add(rect);
 
     std::vector<std::shared_ptr<LinRT::emitter>> emitters{ rect_emitter };
     LinRT::scene render_scene(std::move(world), std::move(emitters), camera);
 
 #ifdef USE_PATH_INTEGRATOR
     const LinRT::path_integrator integrator;
-#elif defined(USE_PHOTON_MAP)
+#elif defined(USE_PHOTON_MAP_INTEGRATOR)
     const auto photon_map_build_start = std::chrono::steady_clock::now();
     LinRT::photon_integrator integrator;
     integrator.preprocess(render_scene);

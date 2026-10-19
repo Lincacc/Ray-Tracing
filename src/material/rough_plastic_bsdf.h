@@ -83,15 +83,18 @@ namespace LinRT {
             }
 
             // 两瓣都开着时，eval 和 pdf 都含两瓣。权重是二者之和除以混合密度。
-            const auto density = pdf(ctx, sample_record);
+            const auto density = pdf(ctx, sample_record, measure::solid_angle);
             if(density == 0.0f) {
                 return color(0.0f);
             }
             sample_record.pdf = density;
-            return eval(ctx, sample_record) / density;
+            return eval(ctx, sample_record, measure::solid_angle) / density;
         }
 
-        color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const override {
+        color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
+            if(meas != measure::solid_angle) {
+                return color(0.0f);
+            }
             const bool allow_glossy = glossy_allowed(ctx);
             const bool allow_diffuse = diffuse_allowed(ctx);
             if(sample_record.wi.z <= 0.0f || sample_record.wo.z <= 0.0f || (!allow_glossy && !allow_diffuse)) {
@@ -118,7 +121,10 @@ namespace LinRT {
             return result;
         }
 
-        global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const override {
+        global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
+            if(meas != measure::solid_angle) {
+                return 0.0f;
+            }
             const bool allow_glossy = glossy_allowed(ctx);
             const bool allow_diffuse = diffuse_allowed(ctx);
             if(sample_record.wi.z <= 0.0f || sample_record.wo.z <= 0.0f || (!allow_glossy && !allow_diffuse)) {

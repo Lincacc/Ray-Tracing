@@ -189,7 +189,7 @@ namespace LinRT {
                 if(!specular || exhaustive) {
                     ctx.type_mask = smooth_flags;
                 }
-                const auto value = rec.bsdf_ptr->eval(ctx, sample_record);
+                const auto value = rec.bsdf_ptr->eval(ctx, sample_record, measure::solid_angle);
                 if(value.is_zero()) {
                     continue;
                 }
@@ -202,7 +202,7 @@ namespace LinRT {
                 }
 
                 const auto light_pdf = world.pdf_emitter_direction(rec.p, shadow_direction);
-                const auto bsdf_pdf = rec.bsdf_ptr->pdf(ctx, sample_record);
+                const auto bsdf_pdf = rec.bsdf_ptr->pdf(ctx, sample_record, measure::solid_angle);
                 if(light_pdf <= 0.0f) {
                     continue;
                 }

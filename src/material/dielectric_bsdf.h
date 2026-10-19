@@ -57,7 +57,10 @@ namespace LinRT {
                 sample_record.wo = reflect(sample_record.wi, vec3(0.0f, 0.0f, 1.0f));
                 sample_record.sampled_type = reflection_lobe;
                 sample_record.sampled_component = 0;
-                return specular_reflectance;
+                // 离散 pdf：两瓣都开是 F，只开反射是 1。权重 = F·R / pdf。
+                sample_record.pdf = allow_transmission ? fresnel.reflectance : 1.0f;
+                return allow_transmission ? specular_reflectance
+                    : specular_reflectance * fresnel.reflectance;
             }
 
             if(fresnel.reflectance >= 1.0f) {
@@ -69,8 +72,12 @@ namespace LinRT {
             sample_record.eta = eta_i / eta_t;
             sample_record.sampled_type = transmission_lobe;
             sample_record.sampled_component = 1;
+            sample_record.pdf = allow_reflection ? (1.0f - fresnel.reflectance) : 1.0f;
 
             auto weight = specular_transmittance;
+            if(!allow_reflection) {
+                weight *= 1.0f - fresnel.reflectance;
+            }
             if(ctx.mode == bsdf_context::transport_mode::RADIANCE) {
                 weight *= sample_record.eta * sample_record.eta;
             }
@@ -78,12 +85,75 @@ namespace LinRT {
             return weight;
         }
 
-        color eval(const bsdf_context&, const bsdf_sample_record&) const override {
-            return color(0.0f);
+        color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
+            if(meas != measure::discrete || sample_record.wi.z <= 0.0f) {
+                return color(0.0f);
+            }
+
+            const bool allow_reflection = (ctx.type_mask & reflection_lobe) != 0
+                && (ctx.component == -1 || ctx.component == 0);
+            const bool allow_transmission = (ctx.type_mask & transmission_lobe) != 0
+                && (ctx.component == -1 || ctx.component == 1);
+
+            const auto eta_i = sample_record.front_face ? ext_ior : int_ior;
+            const auto eta_t = sample_record.front_face ? int_ior : ext_ior;
+            const auto fresnel = fresnel_dielectric(sample_record.wi.z, eta_i, eta_t);
+
+            if(sample_record.wi.z * sample_record.wo.z >= 0.0f) {
+                if(!allow_reflection
+                    || !delta_aligned(reflect(sample_record.wi, vec3(0.0f, 0.0f, 1.0f)), sample_record.wo)) {
+                    return color(0.0f);
+                }
+                return specular_reflectance * fresnel.reflectance;
+            }
+
+            if(!allow_transmission || fresnel.reflectance >= 1.0f) {
+                return color(0.0f);
+            }
+            const auto transmitted = refract(sample_record.wi, vec3(0.0f, 0.0f, 1.0f),
+                                             fresnel.cos_theta_t, eta_i, eta_t);
+            if(!delta_aligned(transmitted, sample_record.wo)) {
+                return color(0.0f);
+            }
+            auto value = specular_transmittance * (1.0f - fresnel.reflectance);
+            if(ctx.mode == bsdf_context::transport_mode::RADIANCE) {
+                const auto eta = eta_i / eta_t;
+                value *= eta * eta;
+            }
+            return value;
         }
-        
-        global_precision pdf(const bsdf_context&, const bsdf_sample_record&) const override {
-            return 0.0f;
+
+        global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
+            if(meas != measure::discrete || sample_record.wi.z <= 0.0f) {
+                return 0.0f;
+            }
+
+            const bool allow_reflection = (ctx.type_mask & reflection_lobe) != 0
+                && (ctx.component == -1 || ctx.component == 0);
+            const bool allow_transmission = (ctx.type_mask & transmission_lobe) != 0
+                && (ctx.component == -1 || ctx.component == 1);
+
+            const auto eta_i = sample_record.front_face ? ext_ior : int_ior;
+            const auto eta_t = sample_record.front_face ? int_ior : ext_ior;
+            const auto fresnel = fresnel_dielectric(sample_record.wi.z, eta_i, eta_t);
+
+            if(sample_record.wi.z * sample_record.wo.z >= 0.0f) {
+                if(!allow_reflection
+                    || !delta_aligned(reflect(sample_record.wi, vec3(0.0f, 0.0f, 1.0f)), sample_record.wo)) {
+                    return 0.0f;
+                }
+                return allow_transmission ? fresnel.reflectance : 1.0f;
+            }
+
+            if(!allow_transmission || fresnel.reflectance >= 1.0f) {
+                return 0.0f;
+            }
+            const auto transmitted = refract(sample_record.wi, vec3(0.0f, 0.0f, 1.0f),
+                                             fresnel.cos_theta_t, eta_i, eta_t);
+            if(!delta_aligned(transmitted, sample_record.wo)) {
+                return 0.0f;
+            }
+            return allow_reflection ? (1.0f - fresnel.reflectance) : 1.0f;
         }
     private:
         static constexpr unsigned int reflection_lobe = SPECULAR | REFLECTIVE | DIELECTRIC;

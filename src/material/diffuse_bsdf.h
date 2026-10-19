@@ -47,9 +47,10 @@ namespace LinRT {
             return albedo;
         }
 
-        color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const override {
+        color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
             constexpr auto lobe = DIFFUSE | REFLECTIVE;
 
+            if(meas != measure::solid_angle) { return color(0.0f); }
             if(!(ctx.type_mask & lobe)) { return color(0.0f); }
             if(ctx.component != -1 && ctx.component != 0) { return color(0.0f); }
             if(sample_record.wi.z <= .0f || sample_record.wo.z <= .0f) { return color(0.0f); }
@@ -58,9 +59,10 @@ namespace LinRT {
             return albedo * (sample_record.wo.z / M_PI<global_precision>);
         }
 
-        global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const override {
+        global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
             constexpr auto lobe = DIFFUSE | REFLECTIVE;
 
+            if(meas != measure::solid_angle) { return 0.0f; }
             if(!(ctx.type_mask & lobe)) { return 0.0f; }
             if(ctx.component != -1 && ctx.component != 0) { return 0.0f; }
             if(sample_record.wi.z <= .0f || sample_record.wo.z <= .0f) { return 0.0f; }

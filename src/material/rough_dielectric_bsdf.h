@@ -87,11 +87,17 @@ namespace LinRT {
             return specular_transmittance * (lobe.first / lobe.second);
         }
 
-        color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const override {
+        color eval(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
+            if(meas != measure::solid_angle) {
+                return color(0.0f);
+            }
             return eval_and_pdf(ctx, sample_record).first;
         }
 
-        global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record) const override {
+        global_precision pdf(const bsdf_context& ctx, const bsdf_sample_record& sample_record, measure meas) const override {
+            if(meas != measure::solid_angle) {
+                return 0.0f;
+            }
             return eval_and_pdf(ctx, sample_record).second;
         }
 

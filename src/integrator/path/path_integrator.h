@@ -107,7 +107,7 @@ namespace LinRT {
 
                         if(have_target) {
                             sample_record.wo = basis.world_to_local(shadow_direction);
-                            const auto f_cos = rec.bsdf_ptr->eval(ctx, sample_record);
+                            const auto f_cos = rec.bsdf_ptr->eval(ctx, sample_record, measure::solid_angle);
                             if(!f_cos.is_zero()) {
                                 hit_record occluder;
                                 const ray shadow(shadow_origin, shadow_direction);
@@ -115,7 +115,7 @@ namespace LinRT {
                                 // 最近的交点就是目标灯：灯可见。中间先碰到别的物体才算挡住。
                                 const bool blocked = hit_something && occluder.emitter_ptr != light.emitter_ptr;
                                 if(!blocked) {
-                                    const auto bsdf_pdf = rec.bsdf_ptr->pdf(ctx, sample_record);
+                                    const auto bsdf_pdf = rec.bsdf_ptr->pdf(ctx, sample_record, measure::solid_angle);
                                     const auto light_pdf = world.pdf_emitter_direction(rec.p, shadow_direction);
                                     if(light_pdf > 0.0f) {
                                         const auto weight = power_heuristic(light_pdf, bsdf_pdf);
@@ -143,10 +143,11 @@ namespace LinRT {
                 throughput *= bsdf_weight;
                 eta *= sample_record.eta; // 此处的折射率用于俄罗斯轮盘
 
-                // 纯镜面（带 SPECULAR、不带 DIFFUSE/GLOSSY）的密度不是立体角密度，下一次打到天空时不和光源比。
-                const bool delta = (sample_record.sampled_type & SPECULAR) != 0
-                    && (sample_record.sampled_type & (DIFFUSE | GLOSSY)) == 0;
-                have_solid_angle_pdf = !delta && sample_record.pdf > 0.0f;
+                // sample() 填的 pdf 属于 measure_of(sampled_type)。
+                // 只有立体角密度才能和 light_pdf 做幂启发式。
+                have_solid_angle_pdf =
+                    bsdf::measure_of(sample_record.sampled_type) == measure::solid_angle
+                    && sample_record.pdf > 0.0f;
                 solid_angle_pdf = sample_record.pdf;
 
                 // 俄罗斯轮盘：depth 为 0..4 的弹射一律保留。
