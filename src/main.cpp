@@ -14,6 +14,7 @@
 #include "material/plastic_bsdf.h"
 #include "material/rough_plastic_bsdf.h"
 #include "material/coating_bsdf.h"
+#include "material/rough_coating_bsdf.h"
 #include "accelerator/thread_pool.h"
 #include "emitter/area_emitter.h"
 #include "emitter/env_emitter.h"
@@ -42,6 +43,8 @@ const auto plastic = std::make_shared<LinRT::plastic_bsdf>(1.49f, 1.000277f, Lin
 const auto rough_plastic = std::make_shared<LinRT::rough_plastic_bsdf>(1.49f, 1.000277f, 0.1f, LinRT::color(1.0f), LinRT::color(0.8f, 0.1f, 0.05f));
 const auto coated_copper = std::make_shared<LinRT::coating_bsdf>(
     1.7f, 1.000277f, plastic, LinRT::color(0.3,0.6,0.6));
+const auto rough_coated = std::make_shared<LinRT::rough_coating_bsdf>(
+    1.7f, 1.000277f, 0.3f, rough_glass);
 
 const auto env_emitter = std::make_shared<LinRT::env_emitter>(
     LinRT::vec3(0.6f, 0.4f, -0.7f), // 太阳方向，内部会归一化
@@ -69,7 +72,7 @@ int main() {
         return 1;
     }
     mesh->translate(LinRT::vec3(0.0f, 0.0f, 0.0f));
-    mesh->set_material(coated_copper);
+    mesh->set_material(rough_plastic);
     world.add(mesh);
 
     auto plane = std::make_shared<LinRT::sphere>(LinRT::vec3(0.0f, -100.5f, 0.0f), 100.0f);

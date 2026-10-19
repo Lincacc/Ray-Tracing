@@ -40,6 +40,25 @@ namespace LinRT {
         return result;
     }
 
+    // RoughCoating::EDestination。interior：外→涂层；exterior：涂层→外。
+    enum class coating_destination {
+        interior,
+        exterior
+    };
+
+    // RoughCoating::refractTo。Snell 只改切向尺度，z 符号与 wi 相同，内层仍在正面求值。
+    // 全内反射返回零向量，调用方用 is_zero() 判定。
+    inline vec3 coating_refract_to(coating_destination dest, const vec3& wi,
+                                   global_precision eta, global_precision inv_eta) {
+        const auto scale = dest == coating_destination::interior ? inv_eta : eta;
+        const auto sin_theta_t2 = scale * scale * (wi.x * wi.x + wi.y * wi.y);
+        if(sin_theta_t2 >= 1.0f) {
+            return vec3(0.0f);
+        }
+        const auto cos_theta_t = std::sqrt(1.0f - sin_theta_t2);
+        return vec3(scale * wi.x, scale * wi.y, wi.z > 0.0f ? cos_theta_t : -cos_theta_t);
+    }
+
     // 立体角压缩 1/eta^2，以及把内层 eval 里的 cosθ_inner 换成外层 cosθ_outer。
     inline global_precision coating_solid_angle_factor(global_precision inv_eta, const vec3& wo, const vec3& wo_inner) {
         return inv_eta * inv_eta * wo.z / wo_inner.z;
