@@ -11,7 +11,7 @@
 <img src="assets/output/output-coating.png" alt="光滑涂层" width="32%">
 </p>
 <p>
-<img src="assets/output/output-rough-coating.png" alt="粗糙图层" width="32%">
+<img src="assets/output/output-rough-coating.png" alt="粗糙涂层" width="32%">
 </p>
 
 ## 光子映射（光子 map 构建 + 单向路径）
@@ -27,5 +27,8 @@
 <img src="assets/output/output-coating（photon-mapper）.png" alt="光滑涂层" width="32%">
 </p>
 <p>
-<img src="assets/output/output-rough-coating（photon-mapper）.png" alt="粗糙图层" width="32%">
+<img src="assets/output/output-rough-coating（photon-mapper）.png" alt="粗糙涂层" width="32%">
 </p>
+
+## ps
+目前材质实现了漫反射、粗糙电解质（rough 控制）、粗糙导体（rough 控制）、光滑塑料、粗糙塑料、光滑涂层、粗糙涂层
